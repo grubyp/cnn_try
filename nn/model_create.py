@@ -67,14 +67,15 @@ def calc_fc(img, fc_w, fc_b, flag = False):
             result[i] = (np.matmul(fc_w, img[i]) + fc_b)
     return result
 
-def calc_softmax(img, sm_range):
+def calc_softmax(img):
     img_size = np.shape(img)
     img_num = img_size[0]
-    soft_max = np.zeros(img_num)
+    img_deep = img_size[1]
+    result = np.zeros([img_num, img_deep])
     for i in range(img_num):
         img[i] -= np.max(img[i])
-        soft_max[i] = np.max(np.exp(img[i]) / np.sum(np.exp(img[i]))) * sm_range
-    return soft_max
+        result[i] = np.exp(img[i]) / np.sum(np.exp(img[i]))
+    return result
 
 def main():
     train_lab, train_img, test_lab, test_img = utils.load_mnist()
@@ -128,8 +129,8 @@ def main():
 
     sm_range = 10
     # softmax
-    sm = calc_softmax(fc_1, sm_range)
-    print(sm)
+    sm = calc_softmax(fc_1)
+    print(np.max(sm, 1) * sm_range)
 
     end_time = time.time()
     print(end_time - start_time)
