@@ -133,7 +133,7 @@ def train(train_img, train_lab, label_range):
     fc_1 = calc_fc(fc_0, fc_w_0, fc_b_0)
     print(fc_1.shape)
     # 第三层全连接层
-    fc_2 = calc_fc(fc_1, fc_w_1, fc_b_1, flag = True)
+    fc_2 = calc_fc(fc_1, fc_w_1, fc_b_1, flag=True)
     print(fc_2.shape)
 
     # softmax
