@@ -1,6 +1,4 @@
-from nn import utils
 import numpy as np
-import time
 
 def create_conv(x, y, z):
     return np.random.randn(x, y, z)
@@ -55,14 +53,15 @@ def calc_maxpool(img, maxpool, maxpool_step):
 
 def calc_fc(img, fc_w, fc_b, flag = False):
     img_size = np.shape(img)
+    fc_w_size = np.shape(fc_w)
     img_num = img_size[0]
     img_deep = img_size[1]
     if(flag):
-        result = np.zeros([img_num, img_deep])
+        result = np.zeros([img_num, fc_w_size[0]])
         for i in range(img_num):
             result[i] = (np.matmul(fc_w, img[i]) + fc_b).T
     else:
-        result = np.zeros([img_num, img_deep], 1)
+        result = np.zeros([img_num, fc_w_size[0], 1])
         for i in range(img_num):
             result[i] = (np.matmul(fc_w, img[i]) + fc_b)
     return result
@@ -77,8 +76,13 @@ def calc_softmax(img):
         result[i] = np.exp(img[i]) / np.sum(np.exp(img[i]))
     return result
 
-def main():
-    train_lab, train_img, test_lab, test_img = utils.load_mnist()
+def train(train_img, train_lab, label_range):
+    lab_size = np.shape(train_lab)
+    lab_num = lab_size[0]
+    lab_arr = np.zeros([lab_num, label_range])
+    for i in range(lab_num):
+        lab_arr[i][train_lab[i]] = 1
+    print(lab_arr)
 
     # 卷积层初始化
     conv_step = 1
@@ -95,10 +99,9 @@ def main():
     maxpool_step = 2
     maxpool = [2, 2]
 
-    start_time = time.time()
     # 计算卷积
     # 第一层卷积
-    conv_1 = calc_conv(train_img[0:10], conv3_16_0, conv_b_1, conv_step)
+    conv_1 = calc_conv(train_img, conv3_16_0, conv_b_1, conv_step)
     print(conv_1.shape)
     # 第二层卷积
     conv_2 = calc_conv(conv_1, conv3_16_1, conv_b_2, conv_step)
@@ -117,23 +120,22 @@ def main():
     pool_2_size = np.shape(pool_2)
     print(pool_2_size)
 
-    fc_size = pool_2_size[1] * pool_2_size[2] * pool_2_size[3]
-    fc_w = np.random.randn(fc_size, fc_size)
-    fc_b = np.random.randn(fc_size, 1)
+    fc_0_size = pool_2_size[1] * pool_2_size[2] * pool_2_size[3]
+    fc_w_0 = np.random.randn(fc_0_size, fc_0_size)
+    fc_b_0 = np.random.randn(fc_0_size, 1)
+    fc_1_size = label_range
+    fc_w_1 = np.random.randn(fc_1_size, fc_0_size)
+    fc_b_1 = np.random.randn(fc_1_size, 1)
     # 第一层全连接层
-    fc_0 = np.reshape(pool_2, [pool_2_size[0], fc_size, 1])
+    fc_0 = np.reshape(pool_2, [pool_2_size[0], fc_0_size, 1])
     print(fc_0.shape)
     # 第二层全连接层
-    fc_1 = calc_fc(fc_0, fc_w, fc_b, flag = True)
+    fc_1 = calc_fc(fc_0, fc_w_0, fc_b_0)
     print(fc_1.shape)
+    # 第三层全连接层
+    fc_2 = calc_fc(fc_1, fc_w_1, fc_b_1, flag = True)
+    print(fc_2.shape)
 
-    sm_range = 10
     # softmax
-    sm = calc_softmax(fc_1)
-    print(np.max(sm, 1) * sm_range)
-
-    end_time = time.time()
-    print(end_time - start_time)
-
-if __name__ == '__main__':
-    main()
+    sm = calc_softmax(fc_2)
+    print(sm.shape)
