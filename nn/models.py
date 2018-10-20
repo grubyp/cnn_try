@@ -64,6 +64,7 @@ def calc_fc(img, fc_w, fc_b, flag = False):
         result = np.zeros([img_num, fc_w_size[0], 1])
         for i in range(img_num):
             result[i] = (np.matmul(fc_w, img[i]) + fc_b)
+    result = np.maximum(result, 0)
     return result
 
 def calc_softmax(img):
@@ -76,13 +77,15 @@ def calc_softmax(img):
         result[i] = np.exp(img[i]) / np.sum(np.exp(img[i]))
     return result
 
+def bp_softmax(sm, lab_mat):
+    pass
+
 def train(train_img, train_lab, label_range):
     lab_size = np.shape(train_lab)
     lab_num = lab_size[0]
-    lab_arr = np.zeros([lab_num, label_range])
+    lab_mat = np.zeros([lab_num, label_range])
     for i in range(lab_num):
-        lab_arr[i][train_lab[i]] = 1
-    print(lab_arr)
+        lab_mat[i][train_lab[i]] = 1
 
     # 卷积层初始化
     conv_step = 1
@@ -139,3 +142,5 @@ def train(train_img, train_lab, label_range):
     # softmax
     sm = calc_softmax(fc_2)
     print(sm.shape)
+
+    bp_softmax(sm, lab_mat)
