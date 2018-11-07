@@ -148,13 +148,25 @@ def train(train_img, train_lab, label_range):
 
     alpha = 0.01
 
-    softmax_grad = bp_softmax(sm, lab_mat)
-    print(softmax_grad.shape)
+    fc_delta_2 = bp_softmax(sm, lab_mat)
     dw_sum_1 = np.zeros((lab_num, fc_0_size, fc_1_size))
     for i in range(lab_num):
-        dw_sum_1[i] = np.matmul(fc_1[i], softmax_grad[i].T)
+        dw_sum_1[i] = np.matmul(fc_1[i], fc_delta_2[i].T)
     delta_w_1 = np.mean(dw_sum_1, axis=0)
-    delta_b_1 = np.mean(softmax_grad, axis=0)
+    delta_b_1 = np.mean(fc_delta_2, axis=0)
     fc_grad_1 = {'dw': delta_w_1, 'db': delta_b_1}
-    print(delta_w_1.shape)
-    print(delta_b_1.shape)
+    fc_delta_1 = np.zeros((lab_num, fc_0_size, 1))
+    for i in range(lab_num):
+        fc_delta_1[i] = np.matmul(fc_w_1, fc_delta_2[i]) * (1-np.power(fc_1[i], 2))
+
+    dw_sum_0 = np.zeros((lab_num, fc_0_size, fc_0_size))
+    for i in range(lab_num):
+        dw_sum_0[i] = np.matmul(fc_0[i], fc_delta_1[i].T)
+    delta_w_0 = np.mean(dw_sum_0, axis=0)
+    delta_b_0 = np.mean(fc_delta_1, axis=0)
+    fc_grad_0 = {'dw': delta_w_0, 'db': delta_b_0}
+    fc_delta_0 = np.zeros((lab_num, fc_0_size, 1))
+    for i in range(lab_num):
+        fc_delta_0[i] = np.matmul(fc_w_0, fc_delta_1[i]) * (1 - np.power(fc_0[i], 2))
+
+
