@@ -36,12 +36,11 @@ def calc_conv(imgs, conv, conv_b, conv_step):
 
 def calc_maxpool(img, maxpool, maxpool_step):
     img_size = np.shape(img)
-    pool_size = np.shape(maxpool)
     img_num = img_size[0]
     img_row = img_size[1]
     img_col = img_size[2]
     img_deep = img_size[3]
-    pool_row = pool_size[0]
+    pool_row = maxpool[0]
 
     # 池化
     result_row = np.int(img_row / maxpool_step)
@@ -65,10 +64,9 @@ def calc_fc(img, fc_w, fc_b):
     result = np.maximum(result, 0)
     return result
 
-def grad_softmax(img):
+def softmax(img):
     img_size = np.shape(img)
     img_num = img_size[0]
-    img_deep = img_size[1]
     result = np.zeros(img_size)
     for i in range(img_num):
         # img[i] -= np.max(img[i])
@@ -82,13 +80,65 @@ def bp_softmax(sm, lab_mat):
     print('cost = %.4f' % cost)
     return grad
 
+def bp_fc(last_fc, fc_delta, fc_w):
+    img_num = last_fc.shape[0]
+    last_fc_size = fc_w.shape[0]
+    fc_size = fc_w.shape[1]
+    dw_sum = np.zeros((img_num, last_fc_size, fc_size))
+    for i in range(img_num):
+        dw_sum[i] = np.matmul(last_fc[i], fc_delta[i].T)
+    delta_w = np.mean(dw_sum, axis=0)
+    delta_b = np.mean(fc_delta, axis=0)
+    fc_grad = {'dw': delta_w, 'db': delta_b}
+    last_fc_delta = np.zeros((img_num, last_fc_size, 1))
+    for i in range(img_num):
+        last_fc_delta[i] = np.matmul(fc_w, fc_delta[i]) * (1-np.power(last_fc[i], 2))
+    return fc_grad, last_fc_delta
+
+def create_mask(x):
+    mask = (x == np.max(x))
+    return mask
+
+def bp_pool(conv_prev, pool_delta, maxpool, maxpool_step):
+    pool_delta_size = np.shape(pool_delta)
+    pool_row = maxpool[0]
+    result = np.zeros(conv_prev.shape)
+    for n in range(pool_delta_size[0]):
+        aconv_prev = conv_prev[n, :, :, :]
+        for i in range(pool_delta_size[1]):
+            for j in range(pool_delta_size[2]):
+                for d in range(pool_delta_size[3]):
+                    vert_start = i * maxpool_step
+                    vert_end = vert_start + pool_row
+                    horiz_start = j * maxpool_step
+                    horiz_end = horiz_start + pool_row
+                    mask = create_mask(aconv_prev[vert_start:vert_end, horiz_start:horiz_end, d])
+                    result[n, vert_start:vert_end, horiz_start:horiz_end, d] += mask * pool_delta[n, i, j, d]
+    return result
+
+def bp_conv(conv_core, conv_delta):
+    conv_delta_size = np.shape(conv_delta)
+    conv_core_row = conv_core.shape[0]
+    conv_core_deep = conv_core.shape[2]
+    conv_core_step = 1
+    conv_delta_prev = np.zeros((conv_delta_size[0], conv_delta_size[1], conv_delta_size[2], conv_core_deep))
+    for n in range(conv_delta_size[0]):
+        for i in range(conv_delta_size[1]):
+            for j in range(conv_delta_size[2]):
+                for d in range(conv_delta_size[3]):
+                    vert_start = i * conv_core_step
+                    vert_end = vert_start + conv_core_row
+                    horiz_start = j * conv_core_step
+                    horiz_end = horiz_start + conv_core_row
+
+
 def train(train_img, train_lab, label_range):
     lab_size = np.shape(train_lab)
     lab_num = lab_size[0]
     lab_mat = np.zeros([lab_num, label_range, 1])
     for i in range(lab_num):
         lab_mat[i][train_lab[i]] = 1
-    print(lab_mat.shape)
+    print('lab_mat.shape = ', lab_mat.shape)
 
     # 卷积层初始化
     conv_step = 1
@@ -108,23 +158,23 @@ def train(train_img, train_lab, label_range):
     # 计算卷积
     # 第一层卷积
     conv_1 = calc_conv(train_img, conv3_16_0, conv_b_1, conv_step)
-    print(conv_1.shape)
+    print('conv_1.shape = ', conv_1.shape)
     # 第二层卷积
     conv_2 = calc_conv(conv_1, conv3_16_1, conv_b_2, conv_step)
-    print(conv_2.shape)
+    print('conv_2.shape = ', conv_2.shape)
     # 第一层池化
     pool_1 = calc_maxpool(conv_2, maxpool, maxpool_step)
-    print(pool_1.shape)
+    print('pool_1.shape = ', pool_1.shape)
     # 第三层卷积
     conv_3 = calc_conv(pool_1, conv3_32_0, conv_b_3, conv_step)
-    print(conv_3.shape)
+    print('conv_3.shape = ', conv_3.shape)
     # 第四层卷积
     conv_4 = calc_conv(conv_3, conv3_32_1, conv_b_4, conv_step)
-    print(conv_4.shape)
+    print('conv_4.shape = ', conv_4.shape)
     # 第二层池化
     pool_2 = calc_maxpool(conv_4, maxpool, maxpool_step)
     pool_2_size = np.shape(pool_2)
-    print(pool_2_size)
+    print('pool_2_size.shape = ', pool_2_size)
 
     fc_0_size = pool_2_size[1] * pool_2_size[2] * pool_2_size[3]
     fc_w_0 = create_conv((fc_0_size, fc_0_size))
@@ -133,40 +183,33 @@ def train(train_img, train_lab, label_range):
     fc_w_1 = create_conv((fc_0_size, fc_1_size))
     fc_b_1 = constant((fc_1_size, 1))
     # 第一层全连接层
-    fc_0 = np.reshape(pool_2, [pool_2_size[0], fc_0_size, 1])
-    print(fc_0.shape)
+    fc_0 = np.reshape(pool_2, (pool_2_size[0], fc_0_size, 1))
+    print('fc_0.shape = ', fc_0.shape)
     # 第二层全连接层
     fc_1 = calc_fc(fc_0, fc_w_0, fc_b_0)
-    print(fc_1.shape)
+    print('fc_1.shape = ', fc_1.shape)
     # 第三层全连接层
     fc_2 = calc_fc(fc_1, fc_w_1, fc_b_1)
-    print(fc_2.shape)
+    print('fc_2.shape = ', fc_2.shape)
 
-    # softmax
-    sm = grad_softmax(fc_2)
-    print(sm.shape)
+    # softmax层
+    sm = softmax(fc_2)
+    print('sm.shape = ', sm.shape)
 
-    alpha = 0.01
-
+    # softmax层反馈
     fc_delta_2 = bp_softmax(sm, lab_mat)
-    dw_sum_1 = np.zeros((lab_num, fc_0_size, fc_1_size))
-    for i in range(lab_num):
-        dw_sum_1[i] = np.matmul(fc_1[i], fc_delta_2[i].T)
-    delta_w_1 = np.mean(dw_sum_1, axis=0)
-    delta_b_1 = np.mean(fc_delta_2, axis=0)
-    fc_grad_1 = {'dw': delta_w_1, 'db': delta_b_1}
-    fc_delta_1 = np.zeros((lab_num, fc_0_size, 1))
-    for i in range(lab_num):
-        fc_delta_1[i] = np.matmul(fc_w_1, fc_delta_2[i]) * (1-np.power(fc_1[i], 2))
+    print('fc_delta_2.shape = ', fc_delta_2.shape)
 
-    dw_sum_0 = np.zeros((lab_num, fc_0_size, fc_0_size))
-    for i in range(lab_num):
-        dw_sum_0[i] = np.matmul(fc_0[i], fc_delta_1[i].T)
-    delta_w_0 = np.mean(dw_sum_0, axis=0)
-    delta_b_0 = np.mean(fc_delta_1, axis=0)
-    fc_grad_0 = {'dw': delta_w_0, 'db': delta_b_0}
-    fc_delta_0 = np.zeros((lab_num, fc_0_size, 1))
-    for i in range(lab_num):
-        fc_delta_0[i] = np.matmul(fc_w_0, fc_delta_1[i]) * (1 - np.power(fc_0[i], 2))
+    # 全连接层反馈
+    fc_grad_1, fc_delta_1 = bp_fc(fc_1, fc_delta_2, fc_w_1)
+    print('fc_delta_1.shape = ', fc_delta_1.shape)
+    fc_grad_0, fc_delta_0 = bp_fc(fc_0, fc_delta_1, fc_w_0)
+    print('fc_delta_0.shape = ', fc_delta_0.shape)
 
+    # 第二层池化层反馈
+    pool_delta_2 = np.reshape(fc_delta_0, pool_2_size)
+    conv_delta_4 = bp_pool(conv_4, pool_delta_2, maxpool, maxpool_step)
+
+    # 卷积层反馈
+    bp_conv(conv3_32_1, conv_delta_4)
 
