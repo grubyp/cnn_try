@@ -16,20 +16,23 @@ def calc_conv(imgs, conv, conv_b, conv_step):
     img_col = img_size[2]
     img_deep = img_size[3]
     conv_row = conv_size[0]
-    conv_deep = conv_size[2]
-    pad = conv_row - 1   # img_row - (img_row - conv_row + 1)
-    img_padded = np.zeros([img_size[0], img_row + pad, img_col + pad, img_deep])
-    img_padded[:, 1:-1, 1:-1, :] = imgs
+    conv_deep = conv_size[3]
+    pad = int((conv_row - 1) / 2)
+    img_padded = np.zeros([img_num, img_row + pad * 2, img_col + pad * 2, img_deep])
+    img_padded[:, pad:-pad, pad:-pad, :] = imgs
 
     # 卷积
-    result = np.zeros([img_num, img_row, img_col, conv_deep])
+    result = np.zeros((img_num, img_row, img_col, conv_deep))
     for n in range(img_num):
         for i in range(img_row):
             for j in range(img_col):
-                for k in range(conv_deep):
-                    for d in range(img_deep):
-                        result[n, i, j, k] = result[n, i, j, k] + np.sum(img_padded[n, i:i+conv_row, j:j+conv_row, d] * conv[:, :, k])
-                    result[n, i, j, k] = result[n, i, j, k] + conv_b[k]
+                for d in range(conv_deep):
+                    vert_start = i * conv_step
+                    vert_end = vert_start + conv_row
+                    horiz_start = j * conv_step
+                    horiz_end = horiz_start + conv_row
+                    result[n, i, j, d] += np.sum(img_padded[n, vert_start:vert_end, horiz_start:horiz_end, :] *
+                                                 conv[:, :, :, d]) + conv_b[d]
     # relu
     result = np.maximum(result, 0)
     return result
@@ -116,19 +119,18 @@ def bp_pool(conv_prev, pool_delta, maxpool, maxpool_step):
                     result[n, vert_start:vert_end, horiz_start:horiz_end, d] += mask * pool_delta[n, i, j, d]
     return result
 
-def bp_conv(conv_core, conv_delta):
+def bp_conv(conv_core, conv_delta, conv_step):
     conv_delta_size = np.shape(conv_delta)
     conv_core_row = conv_core.shape[0]
     conv_core_deep = conv_core.shape[2]
-    conv_core_step = 1
     conv_delta_prev = np.zeros((conv_delta_size[0], conv_delta_size[1], conv_delta_size[2], conv_core_deep))
     for n in range(conv_delta_size[0]):
         for i in range(conv_delta_size[1]):
             for j in range(conv_delta_size[2]):
                 for d in range(conv_delta_size[3]):
-                    vert_start = i * conv_core_step
+                    vert_start = i * conv_step
                     vert_end = vert_start + conv_core_row
-                    horiz_start = j * conv_core_step
+                    horiz_start = j * conv_step
                     horiz_end = horiz_start + conv_core_row
 
 
@@ -142,13 +144,13 @@ def train(train_img, train_lab, label_range):
 
     # 卷积层初始化
     conv_step = 1
-    conv3_16_0 = create_conv((3, 3, 16))
+    conv3_16_0 = create_conv((3, 3, 1, 16))
     conv_b_1 = constant(16)
-    conv3_16_1 = create_conv((3, 3, 16))
+    conv3_16_1 = create_conv((3, 3, 16, 16))
     conv_b_2 = constant(16)
-    conv3_32_0 = create_conv((3, 3, 32))
+    conv3_32_0 = create_conv((3, 3, 16, 32))
     conv_b_3 = constant(32)
-    conv3_32_1 = create_conv((3, 3, 32))
+    conv3_32_1 = create_conv((3, 3, 32, 32))
     conv_b_4 = constant(32)
 
     # 池化层初始化
@@ -208,8 +210,10 @@ def train(train_img, train_lab, label_range):
 
     # 第二层池化层反馈
     pool_delta_2 = np.reshape(fc_delta_0, pool_2_size)
+    print('pool_delta_2.shape = ', pool_delta_2.shape)
     conv_delta_4 = bp_pool(conv_4, pool_delta_2, maxpool, maxpool_step)
+    print('conv_delta_4.shape = ', conv_delta_4.shape)
 
     # 卷积层反馈
-    bp_conv(conv3_32_1, conv_delta_4)
+    # bp_conv(conv3_32_1, conv_delta_4, conv_step)
 
