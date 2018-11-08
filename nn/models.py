@@ -116,19 +116,18 @@ def bp_pool(conv_prev, pool_delta, maxpool, maxpool_step):
                     result[n, vert_start:vert_end, horiz_start:horiz_end, d] += mask * pool_delta[n, i, j, d]
     return result
 
-def bp_conv(conv_core, conv_delta):
+def bp_conv(conv_core, conv_delta, conv_step):
     conv_delta_size = np.shape(conv_delta)
     conv_core_row = conv_core.shape[0]
     conv_core_deep = conv_core.shape[2]
-    conv_core_step = 1
     conv_delta_prev = np.zeros((conv_delta_size[0], conv_delta_size[1], conv_delta_size[2], conv_core_deep))
     for n in range(conv_delta_size[0]):
         for i in range(conv_delta_size[1]):
             for j in range(conv_delta_size[2]):
                 for d in range(conv_delta_size[3]):
-                    vert_start = i * conv_core_step
+                    vert_start = i * conv_step
                     vert_end = vert_start + conv_core_row
-                    horiz_start = j * conv_core_step
+                    horiz_start = j * conv_step
                     horiz_end = horiz_start + conv_core_row
 
 
@@ -211,5 +210,5 @@ def train(train_img, train_lab, label_range):
     conv_delta_4 = bp_pool(conv_4, pool_delta_2, maxpool, maxpool_step)
 
     # 卷积层反馈
-    bp_conv(conv3_32_1, conv_delta_4)
+    bp_conv(conv3_32_1, conv_delta_4, conv_step)
 
