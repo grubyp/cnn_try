@@ -123,7 +123,12 @@ def bp_conv(conv_core, conv_delta, conv_step):
     conv_delta_size = np.shape(conv_delta)
     conv_core_row = conv_core.shape[0]
     conv_core_deep = conv_core.shape[2]
-    conv_delta_prev = np.zeros((conv_delta_size[0], conv_delta_size[1], conv_delta_size[2], conv_core_deep))
+
+    # padding
+    pad = int((conv_core_row - 1) / 2)
+    delta_prev_padded = np.zeros([conv_delta_size[0],
+                                  conv_delta_size[1] + pad * 2, conv_delta_size[2] + pad * 2, conv_core_deep])
+
     for n in range(conv_delta_size[0]):
         for i in range(conv_delta_size[1]):
             for j in range(conv_delta_size[2]):
@@ -132,7 +137,10 @@ def bp_conv(conv_core, conv_delta, conv_step):
                     vert_end = vert_start + conv_core_row
                     horiz_start = j * conv_step
                     horiz_end = horiz_start + conv_core_row
-
+                    delta_prev_padded[n, vert_start:vert_end, horiz_start:horiz_end, :] += \
+                        conv_core[:, :, :, d] * conv_delta[n, i, j, d]
+    conv_core_prev = delta_prev_padded[:, pad:-pad, pad:-pad, :]
+    return conv_core_prev
 
 def train(train_img, train_lab, label_range):
     lab_size = np.shape(train_lab)
@@ -215,5 +223,5 @@ def train(train_img, train_lab, label_range):
     print('conv_delta_4.shape = ', conv_delta_4.shape)
 
     # 卷积层反馈
-    # bp_conv(conv3_32_1, conv_delta_4, conv_step)
-
+    conv_delta_3 = bp_conv(conv3_32_1, conv_delta_4, conv_step)
+    print('conv_delta_3.shape = ', conv_delta_3.shape)
