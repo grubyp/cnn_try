@@ -6,7 +6,7 @@ def main():
 
     start_time = time.time()
 
-    train_num = 10
+    train_num = 100
     models.train(train_img[0:train_num], train_lab[0:train_num], 10, iter=1000)
 
     end_time = time.time()
